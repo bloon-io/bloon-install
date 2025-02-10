@@ -287,6 +287,16 @@ func_DOWNLOAD_AND_EXTARCT_BINARY() {
     cd $TMP_WORK_DIR
     echo
     echo "[BLOON-install] Installing binary..."
+
+    # No matter what, delete the old installation first
+    rm -rf /opt/BLOON
+    
+    # If installed via deb, rpm and then removed, it may cause the /opt folder to be removed. Check if /opt exists here first
+    if [ ! -d /opt ]; then
+        sudo mkdir /opt
+        sudo chmod 755 /opt
+    fi
+
     sudo mv BLOON /opt
 }
 
