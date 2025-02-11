@@ -127,7 +127,7 @@ func_CHECK_AND_INSTALL_DEPENDENCIES() {
         manual_install_pkg_name_list=$(echo "$manual_install_pkg_name_list" | sed 's/^ *//;s/ *$//')
         auto_install_pkg_name_list=$(echo "$auto_install_pkg_name_list" | sed 's/^ *//;s/ *$//')
         # remove the tailing "\n"
-        install_cmd_to_show_str_list=$(echo -e "$install_cmd_to_show_str_list" | sed 's/\n$//')
+        install_cmd_to_show_str_list=$(printf "$install_cmd_to_show_str_list" | sed 's/\n$//')
     }
 
     # Get user confirmation to automatically install required packages
@@ -147,7 +147,7 @@ func_CHECK_AND_INSTALL_DEPENDENCIES() {
 
                 echo
                 echo "[BLOON-install] We will execute the following commands to automatically install these packages:"
-                echo -e "$install_cmd_to_show_str_list"
+                printf "$install_cmd_to_show_str_list\n"
 
                 read -r -p "[BLOON-install] Continue? (y/n) " response </dev/tty
                 if [ "$response" != "y" ]; then
