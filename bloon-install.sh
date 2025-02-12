@@ -161,6 +161,15 @@ func_CHECK_AND_INSTALL_DEPENDENCIES() {
 
     # Install required packages automatically
     {
+        if echo "$auto_install_pkg_name_list" | grep -q "gpg"; then
+            func_DO_INSTALL__GPG
+            if [ $? -ne 0 ]; then
+                echo
+                echo "[BLOON-install] Failed to install gpg. Aborting."
+                exit 1
+            fi
+        fi
+
         if echo "$auto_install_pkg_name_list" | grep -q "wget"; then
             func_DO_INSTALL__WGET
             if [ $? -ne 0 ]; then
