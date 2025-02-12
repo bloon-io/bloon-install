@@ -20,7 +20,7 @@ func_MAIN() {
     # --------------------------------------------------
     echo
     echo "[BLOON-install] Setting up environment..."
-    
+
     # This function is totally the same as the function in the DEB "postinst" script
     func_SETUP_BLOON_ENV
 
@@ -197,7 +197,7 @@ func_DOWNLOAD_AND_EXTARCT_BINARY() {
     local BLOON_RELEASE_KEY="https://www.bloon.io/security/bloon-release-key.gpg"
     local TGZ_FILE_URL="https://dl.bloon.io/dl-hero?pkg=tgz"
     local TGZ_ASC_FILE_URL="https://dl.bloon.io/dl-hero?pkg=tgz&asc"
-    
+
     # --------------------------------------------------
     cd $TMP_WORK_DIR
     echo
@@ -234,7 +234,10 @@ func_DOWNLOAD_AND_EXTARCT_BINARY() {
 
     echo
     echo "[BLOON-install] Fingerprint information of the BLOON release key:"
-    gpg --show-keys --keyid-format LONG --fingerprint $BLOON_RELEASE_KEY_FILE_NAME
+
+    # gpg version 2.2.4 (ubuntu 18.04) not support "--show-keys" option
+    # gpg --show-keys --keyid-format LONG --fingerprint $BLOON_RELEASE_KEY_FILE_NAME
+    gpg --import-options show-only --fingerprint --import $BLOON_RELEASE_KEY_FILE_NAME
 
     ##################################################
     # This hard-coded fingerprint should match the fingerprint on the official website:
@@ -244,8 +247,14 @@ func_DOWNLOAD_AND_EXTARCT_BINARY() {
     ##################################################
 
     BLOON_CORRECT_FINGERPRINT=$(echo $BLOON_CORRECT_FINGERPRINT | tr -d '[:space:]')
+    
+    # gpg version 2.2.4 (ubuntu 18.04) not support "--show-keys" option
+    # local TMP_FIND_FINGERPRINT=$(
+    #     gpg --show-keys --keyid-format LONG --with-colons --fingerprint $BLOON_RELEASE_KEY_FILE_NAME |
+    #         awk -F: '/^pub/ {pub=1} /^fpr/ && pub {print $10; pub=0}'
+    # )
     local TMP_FIND_FINGERPRINT=$(
-        gpg --show-keys --keyid-format LONG --with-colons --fingerprint $BLOON_RELEASE_KEY_FILE_NAME |
+        gpg --import-options show-only --fingerprint --with-colons --import $BLOON_RELEASE_KEY_FILE_NAME 2>&1 |
             awk -F: '/^pub/ {pub=1} /^fpr/ && pub {print $10; pub=0}'
     )
     if [ "$TMP_FIND_FINGERPRINT" != "$BLOON_CORRECT_FINGERPRINT" ]; then
@@ -290,7 +299,7 @@ func_DOWNLOAD_AND_EXTARCT_BINARY() {
 
     # No matter what, delete the old installation first
     sudo rm -rf /opt/BLOON
-    
+
     # If installed via deb, rpm and then removed, it may cause the /opt folder to be removed. Check if /opt exists here first
     if [ ! -d /opt ]; then
         sudo mkdir /opt
@@ -483,7 +492,7 @@ func_GET_INSTALL_CMD_STR_TO_SHOW__WGET() {
 
     else
         cmd_to_show_str="____SHOULD_INSTALL_YOURSELF____"
-        
+
     fi
     echo "$cmd_to_show_str"
 }
