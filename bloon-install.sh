@@ -561,7 +561,7 @@ func_DO_INSTALL__PKEXEC() {
         sudo zypper install -y pkexec
 
     elif command -v dnf >/dev/null; then
-        sudo dnf install -y pkexec
+        sudo dnf install -y polkit
 
     else
         # assert false
