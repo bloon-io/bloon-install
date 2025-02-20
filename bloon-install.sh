@@ -250,7 +250,7 @@ func_DOWNLOAD_AND_EXTARCT_BINARY() {
 
     ##################################################
     # This hard-coded fingerprint should match the fingerprint on the official website:
-    # TODO Fill in the real URL that has the fingerprint
+    #   https://www.bloon.io/install-linux#verify
     ##################################################
     local BLOON_CORRECT_FINGERPRINT="C89F 9564 72FB BE40 A5BF  4AA2 F4DF 8C43 B4BB 8D49"
     ##################################################
