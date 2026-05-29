@@ -537,7 +537,12 @@ func_IS_EXIST__PKEXEC() {
 func_GET_INSTALL_CMD_STR_TO_SHOW__PKEXEC() {
     local cmd_to_show_str=""
     if command -v apt-get >/dev/null; then
-        cmd_to_show_str="    sudo apt-get update\n    sudo apt-get install -y policykit-1"
+        # Newer Ubuntu/Debian split polkit: the pkexec binary now ships in the
+        # standalone "pkexec" package and "policykit-1" is a transitional (and
+        # eventually removed) package. Older releases (<=22.04 / bullseye) have
+        # no "pkexec" package and provide pkexec via "policykit-1". Try the
+        # forward-looking name first, fall back to the legacy one.
+        cmd_to_show_str="    sudo apt-get update\n    sudo apt-get install -y pkexec || sudo apt-get install -y policykit-1"
 
     elif command -v zypper >/dev/null; then
         cmd_to_show_str="    sudo zypper install -y pkexec"
@@ -555,7 +560,10 @@ func_GET_INSTALL_CMD_STR_TO_SHOW__PKEXEC() {
 func_DO_INSTALL__PKEXEC() {
     if command -v apt-get >/dev/null; then
         sudo apt-get update
-        sudo apt-get install -y policykit-1
+        # pkexec moved to its own package on newer Ubuntu/Debian; policykit-1 is
+        # now transitional. Fall back to policykit-1 for older releases that have
+        # no pkexec package. See func_GET_INSTALL_CMD_STR_TO_SHOW__PKEXEC.
+        sudo apt-get install -y pkexec || sudo apt-get install -y policykit-1
 
     elif command -v zypper >/dev/null; then
         sudo zypper install -y pkexec
