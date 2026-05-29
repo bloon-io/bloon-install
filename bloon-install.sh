@@ -123,6 +123,24 @@ func_CHECK_AND_INSTALL_DEPENDENCIES() {
         fi
 
         # --------------------------------------------------
+        # Qt6 packaging only: libatomic.so.1 is NEEDED-linked by libQt6WebEngineCore
+        # and is NOT bundled inside the .tgz, so it must exist on the system.
+        # Harmless for the older Qt5 .tgz (it just won't be referenced), so the
+        # check stays unconditional to keep one code path for both packagings.
+        if func_IS_EXIST__LIBATOMIC_1; then
+            echo "[BLOON-install] libatomic.so.1 is already installed."
+        else
+            echo "[BLOON-install] libatomic.so.1 is not installed."
+            if [ "$(func_GET_INSTALL_CMD_STR_TO_SHOW__LIBATOMIC_1)" = "____SHOULD_INSTALL_YOURSELF____" ]; then
+                to_interrupt=true
+                manual_install_pkg_name_list="$manual_install_pkg_name_list libatomic.so.1"
+            else
+                auto_install_pkg_name_list="$auto_install_pkg_name_list libatomic.so.1"
+                install_cmd_to_show_str_list="$install_cmd_to_show_str_list$(func_GET_INSTALL_CMD_STR_TO_SHOW__LIBATOMIC_1)\n"
+            fi
+        fi
+
+        # --------------------------------------------------
         # trim
         manual_install_pkg_name_list=$(echo "$manual_install_pkg_name_list" | sed 's/^ *//;s/ *$//')
         auto_install_pkg_name_list=$(echo "$auto_install_pkg_name_list" | sed 's/^ *//;s/ *$//')
@@ -193,6 +211,15 @@ func_CHECK_AND_INSTALL_DEPENDENCIES() {
             if [ $? -ne 0 ]; then
                 echo
                 echo "[BLOON-install] Failed to install libgthread-2.0.so.0. Aborting."
+                exit 1
+            fi
+        fi
+
+        if echo "$auto_install_pkg_name_list" | grep -q "libatomic.so.1"; then
+            func_DO_INSTALL__LIBATOMIC_1
+            if [ $? -ne 0 ]; then
+                echo
+                echo "[BLOON-install] Failed to install libatomic.so.1. Aborting."
                 exit 1
             fi
         fi
@@ -621,6 +648,52 @@ func_DO_INSTALL__LIBGTHREAD_2_0_0() {
         # assert false
         echo
         echo "[BLOON-install] BLOON requires libgthread-2.0.so.0. Please install libgthread-2.0.so.0."
+        exit 1
+    fi
+}
+
+# --------------------------------------------------
+func_IS_EXIST__LIBATOMIC_1() {
+    if sudo ldconfig -p | grep -q libatomic.so.1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+func_GET_INSTALL_CMD_STR_TO_SHOW__LIBATOMIC_1() {
+    local cmd_to_show_str=""
+    if command -v apt-get >/dev/null; then
+        cmd_to_show_str="    sudo apt-get update\n    sudo apt-get install -y libatomic1"
+
+    elif command -v zypper >/dev/null; then
+        cmd_to_show_str="    sudo zypper install -y libatomic1"
+
+    elif command -v dnf >/dev/null; then
+        cmd_to_show_str="    sudo dnf install -y libatomic"
+
+    else
+        cmd_to_show_str="____SHOULD_INSTALL_YOURSELF____"
+
+    fi
+    echo "$cmd_to_show_str"
+}
+
+func_DO_INSTALL__LIBATOMIC_1() {
+    if command -v apt-get >/dev/null; then
+        sudo apt-get update
+        sudo apt-get install -y libatomic1
+
+    elif command -v zypper >/dev/null; then
+        sudo zypper install -y libatomic1
+
+    elif command -v dnf >/dev/null; then
+        sudo dnf install -y libatomic
+
+    else
+        # assert false
+        echo
+        echo "[BLOON-install] BLOON requires libatomic.so.1. Please install libatomic.so.1."
         exit 1
     fi
 }
