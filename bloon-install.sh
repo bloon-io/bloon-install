@@ -2,10 +2,21 @@
 
 set -u
 
+# Whether to install the legacy (Qt5) build instead of the current (Qt6) one.
+# Decided by func_DETERMINE_PACKAGING from the system glibc version. Initialized
+# here so it is always defined under "set -u" regardless of call order.
+USE_LEGACY=false
+
 func_MAIN() {
 
     # --------------------------------------------------
     func_CHECK_SUDO_PERMISSION
+
+    # --------------------------------------------------
+    # Decide current (Qt6) vs legacy (Qt5) build from the glibc version. Must run
+    # before the dependency check (it gates the libatomic.so.1 check) and the
+    # download (it selects the URL).
+    func_DETERMINE_PACKAGING
 
     # --------------------------------------------------
     echo
@@ -56,6 +67,59 @@ func_CHECK_SUDO_PERMISSION() {
     else
         echo
         echo "[BLOON-install] Sudo permission granted."
+    fi
+}
+
+# Print the system glibc version (e.g. "2.35"), or nothing if it can't be found.
+func_GET_GLIBC_VERSION() {
+    local ver=""
+
+    # getconf prints a locale-independent "glibc 2.XX".
+    if command -v getconf >/dev/null 2>&1; then
+        ver=$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $NF}')
+    fi
+
+    # Fall back to "ldd --version", whose first line ends with the version number.
+    if [ -z "$ver" ] && command -v ldd >/dev/null 2>&1; then
+        ver=$(ldd --version 2>/dev/null | head -n 1 | awk '{print $NF}')
+    fi
+
+    echo "$ver"
+}
+
+# Decide current (Qt6) vs legacy (Qt5) build and set the global USE_LEGACY.
+# glibc >= 2.34 can run the current Qt6 build; older systems (or ones where the
+# version can't be determined) get the legacy Qt5 build, fetched with ver_name=1.4.
+func_DETERMINE_PACKAGING() {
+    echo
+    echo "[BLOON-install] Checking glibc version to select the proper build..."
+
+    local glibc_ver
+    glibc_ver=$(func_GET_GLIBC_VERSION)
+
+    # Only trust a value that looks like a dotted numeric version (e.g. "2.35").
+    case "$glibc_ver" in
+        [0-9]*.[0-9]*) ;;
+        *) glibc_ver="" ;;
+    esac
+
+    # Keep only the leading digit run of each field (e.g. "35-0ubuntu" -> "35").
+    local major minor
+    major=$(echo "$glibc_ver" | cut -d. -f1 | sed 's/[^0-9].*//')
+    minor=$(echo "$glibc_ver" | cut -d. -f2 | sed 's/[^0-9].*//')
+    [ -z "$major" ] && major=0
+    [ -z "$minor" ] && minor=0
+
+    if [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 34 ]; }; then
+        USE_LEGACY=false
+        echo "[BLOON-install] Detected glibc $glibc_ver (>= 2.34). Installing the current build."
+    else
+        USE_LEGACY=true
+        if [ -n "$glibc_ver" ]; then
+            echo "[BLOON-install] Detected glibc $glibc_ver (< 2.34). Installing the legacy build."
+        else
+            echo "[BLOON-install] Could not detect glibc version. Installing the legacy build."
+        fi
     fi
 }
 
@@ -124,19 +188,20 @@ func_CHECK_AND_INSTALL_DEPENDENCIES() {
 
         # --------------------------------------------------
         # Qt6 packaging only: libatomic.so.1 is NEEDED-linked by libQt6WebEngineCore
-        # and is NOT bundled inside the .tgz, so it must exist on the system.
-        # Harmless for the older Qt5 .tgz (it just won't be referenced), so the
-        # check stays unconditional to keep one code path for both packagings.
-        if func_IS_EXIST__LIBATOMIC_1; then
-            echo "[BLOON-install] libatomic.so.1 is already installed."
-        else
-            echo "[BLOON-install] libatomic.so.1 is not installed."
-            if [ "$(func_GET_INSTALL_CMD_STR_TO_SHOW__LIBATOMIC_1)" = "____SHOULD_INSTALL_YOURSELF____" ]; then
-                to_interrupt=true
-                manual_install_pkg_name_list="$manual_install_pkg_name_list libatomic.so.1"
+        # and is NOT bundled inside the .tgz, so it must exist on the system. The
+        # legacy (Qt5) build does not reference it, so skip the check there.
+        if [ "$USE_LEGACY" != true ]; then
+            if func_IS_EXIST__LIBATOMIC_1; then
+                echo "[BLOON-install] libatomic.so.1 is already installed."
             else
-                auto_install_pkg_name_list="$auto_install_pkg_name_list libatomic.so.1"
-                install_cmd_to_show_str_list="$install_cmd_to_show_str_list$(func_GET_INSTALL_CMD_STR_TO_SHOW__LIBATOMIC_1)\n"
+                echo "[BLOON-install] libatomic.so.1 is not installed."
+                if [ "$(func_GET_INSTALL_CMD_STR_TO_SHOW__LIBATOMIC_1)" = "____SHOULD_INSTALL_YOURSELF____" ]; then
+                    to_interrupt=true
+                    manual_install_pkg_name_list="$manual_install_pkg_name_list libatomic.so.1"
+                else
+                    auto_install_pkg_name_list="$auto_install_pkg_name_list libatomic.so.1"
+                    install_cmd_to_show_str_list="$install_cmd_to_show_str_list$(func_GET_INSTALL_CMD_STR_TO_SHOW__LIBATOMIC_1)\n"
+                fi
             fi
         fi
 
@@ -231,8 +296,16 @@ func_DOWNLOAD_AND_EXTARCT_BINARY() {
     local TMP_WORK_DIR=$(mktemp -d -t ___bloon-init___XXXXXX)
 
     local BLOON_RELEASE_KEY="https://www.bloon.io/security/bloon-release-key.gpg"
-    local TGZ_FILE_URL="https://dl.bloon.io/dl-hero?pkg=tgz"
-    local TGZ_ASC_FILE_URL="https://dl.bloon.io/dl-hero?pkg=tgz&asc"
+    local TGZ_FILE_URL
+    local TGZ_ASC_FILE_URL
+    if [ "$USE_LEGACY" = true ]; then
+        # Legacy (Qt5) build for systems with glibc < 2.34.
+        TGZ_FILE_URL="https://dl.bloon.io/dl-hero?pkg=tgz&ver_name=1.4"
+        TGZ_ASC_FILE_URL="https://dl.bloon.io/dl-hero?pkg=tgz&ver_name=1.4&asc"
+    else
+        TGZ_FILE_URL="https://dl.bloon.io/dl-hero?pkg=tgz"
+        TGZ_ASC_FILE_URL="https://dl.bloon.io/dl-hero?pkg=tgz&asc"
+    fi
 
     # --------------------------------------------------
     cd $TMP_WORK_DIR
